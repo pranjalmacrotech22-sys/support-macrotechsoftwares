@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .chips-container { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+        .category-chip { padding: 10px 20px; background: #fff; border: 1px solid #cbd5e1; border-radius: 50px; font-size: 0.85rem; color: #64748b; cursor: pointer; transition: all 0.2s ease; font-weight: 500; user-select: none; }
+        .category-chip:hover { border-color: #d4af37; color: #0f172a; transform: translateY(-1px); }
+        .category-chip.active { background: #0f172a; color: #d4af37; border-color: #0f172a; box-shadow: 0 4px 10px rgba(15, 23, 42, 0.2); }
+        .upload-container { margin-bottom: 20px; }
+        .drop-zone { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: #f8fafc; position: relative; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: #d4af37; background: #fffbeb; }
+        .drop-zone p { margin: 0; font-size: 0.95rem; color: #64748b; pointer-events: none; }
+        .drop-zone span { color: #d4af37; font-weight: 700; }
+        .image-previews { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; margin-top: 15px; }
+        .preview-item { position: relative; height: 80px; border-radius: 6px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+        .remove-img-btn { position: absolute; top: 4px; right: 4px; background: rgba(239, 68, 68, 0.9); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 14px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; }
+        .remove-img-btn:hover { transform: scale(1.1); }
+        .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
+        
+        /* --- NEW SCROLLING LAYOUT STYLES --- */
+        html, body {
+            height: 100vh;
+            overflow: hidden; /* Prevent the entire page from scrolling */
+        }
+        .dashboard-container {
+            /* Full height minus the nav bar and info bar */
+            height: calc(100vh - 145px); 
+            grid-template-rows: 1fr; /* Ensure grid row takes full available height */
+        }
+        #raise-issue-card {
+            position: sticky;
+            top: 20px; /* Position relative to dashboard-container top */
+            max-height: calc(100vh - 180px); /* Prevent card from being taller than viewport */
+            overflow-y: auto; /* Allow the form itself to scroll if it's very long */
+            align-self: start;
+        }
+        #my-issues-card {
+            height: 100%; /* Make the card fill the grid cell height */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Prevent the card itself from scrolling */
+        }
+        #issues-list {
+            flex-grow: 1; /* Allow the list to take all remaining vertical space */
+            overflow-y: auto; /* Enable the scrollbar ONLY for the issue list */
+        }
+        
+        /* --- NEW USER INFO BAR STYLES --- */
+        .user-info-bar {
+            background-color: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 15px 3rem;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .info-item {
+            text-align: center;
+        }
+        .info-label {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+        .info-item strong {
+            font-size: 0.9rem;
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        @media (max-width: 900px) {
+            html, body {
+                height: auto;
+                overflow: auto; /* Revert to normal scrolling on mobile */
+            }
+            .dashboard-container { 
+                display: flex; 
+                flex-direction: column; 
+                gap: 20px; 
+                padding: 1rem; 
+                margin-top: 0;
+                height: auto; /* Revert height */
+            }
+            .card { width: 100%; box-sizing: border-box; }
+            nav { padding: 0.8rem 1rem; }
+            nav h3 { font-size: 1rem; margin-right: auto; }
+            .nav-right { gap: 8px; }
+            .nav-right button { padding: 0.4rem 0.6rem; font-size: 0.7rem; white-space: nowrap; }
+            #raise-issue-card { 
+                position: static;
+                max-height: none;
+                overflow-y: visible;
+            }
+            .user-info-bar {
+                padding: 15px 1rem;
+                justify-content: space-between;
+            }
+            .info-item { text-align: left; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <h3>User Dashboard</h3>
+        <div class="nav-right">
+            <div class="notification-wrapper" onclick="toggleNotifications()">
+                <div style="position: relative; padding: 5px; cursor: pointer;">
+                    <span id="notification-bell" class="bell-icon" style="font-size: 1.2rem;">🔔</span>
+                    <span id="notif-badge" class="bell-badge">0</span>
+                </div>
+                <div id="notif-dropdown" class="notification-dropdown">
+                    <div class="notif-header">
+                        <span>Alerts</span>
+                        <span style="font-weight:400; font-size:0.7rem; cursor:pointer;" onclick="event.stopPropagation(); loadNotifications(supabase.auth.getUser().then(u=>u.data.user.id))">Refresh</span>
+                    </div>
+                    <div id="notif-list" class="notif-list">
+                        <div style="padding:15px; text-align:center; color:#94a3b8; font-size:0.8rem;">Loading...</div>
+                    </div>
+                </div>
+            </div>
+            <a href="profile.html" style="text-decoration:none;">
+                <button style="margin-right:5px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.3); color: white;">My Profile</button>
+            </a>
+            <button onclick="logout()">Sign Out</button>
+        </div>
+    </nav>
+    
+    <!-- USER INFO BAR -->
+    <div class="user-info-bar">
+        <div class="info-item">
+            <span class="info-label">Email</span>
+            <strong id="user-info-email">Loading...</strong>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Total Tickets</span>
+            <strong id="user-info-total-tickets">-</strong>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Member Since</span>
+            <strong id="user-info-member-since">-</strong>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Subscription Ends</span>
+            <strong id="user-info-expiry-date">-</strong>
+        </div>
+    </div>
+
+    <div class="dashboard-container">
+        <!-- RAISE ISSUE -->
+        <div class="card" id="raise-issue-card">
+            <h4>Raise New Issue</h4>
+            <form id="issue-form">
+                <label style="font-size:0.8rem; color:#64748b; font-weight:600; margin-bottom:10px; display:block;">Select Category</label>
+                <div id="category-chips-container" class="chips-container">
+                    <div style="font-size:0.8rem; color:#94a3b8;">Loading categories...</div>
+                </div>
+                <input type="hidden" id="issue-category" required>
+                <div class="form-row">
+                    <div style="flex: 2;">
+                        <label style="font-size:0.8rem; color:#64748b; font-weight:600; margin-bottom:5px; display:block;">Issue Title</label>
+                        <input type="text" id="issue-title" placeholder="Brief Title of the Issue" required style="margin-bottom:0;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size:0.8rem; color:#64748b; font-weight:600; margin-bottom:5px; display:block;">Priority</label>
+                        <select id="issue-priority" style="margin-bottom:0;">
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                    <label style="font-size:0.8rem; color:#64748b; font-weight:600; margin-bottom:5px; display:block;">Description</label>
+                    <button type="button" id="voice-to-text-btn" class="btn-action" style="padding: 4px 12px; font-size: 0.9rem; margin-bottom: 5px; background: transparent; border: 1px solid #cbd5e1; color: #334155; display: flex; align-items: center; gap: 6px;">
+                        <span>🎙️</span> <span id="voice-status-text">Use Mic</span>
+                    </button>
+                </div>
+                <textarea id="issue-desc" placeholder="Describe the issue in detail..." required style="min-height:100px;"></textarea>
+
+                <label style="font-size: 0.8rem; color:#64748b; font-weight:600; margin-bottom:5px; display:block; margin-top: 15px;">Attach Images</label>
+                <div class="upload-container">
+                    <div id="drop-zone" class="drop-zone">
+                        <p><span>Click</span>, Drag & Drop, or <span>Paste (Ctrl+V)</span></p>
+                        <input type="file" id="issue-images-input" multiple accept="image/*" style="display:none;">
+                    </div>
+                    <div id="image-previews" class="image-previews"></div>
+                </div>
+                <button type="submit" class="primary-btn">Submit Ticket</button>
+            </form>
+        </div>
+
+        <!-- MY ISSUES -->
+        <div class="card" id="my-issues-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:15px; border-bottom:1px solid #f1f5f9;">
+                <h4 style="margin:0; border:none; padding:0;">My Issues</h4>
+            </div>
+            <div class="search-filter-box" style="margin-bottom: 20px;">
+                <input type="text" id="search-input" placeholder="Search issues..." onkeyup="loadUserIssues()" style="flex: 2;">
+                <select id="filter-status" onchange="loadUserIssues()" style="flex: 1;">
+                    <option value="All">All Status</option>
+                    <option value="Open">Open</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                    <option value="Closed">Closed</option>
+                </select>
+            </div>
+            <div id="issues-list" class="issue-list-container">
+                <div style="text-align:center; padding:20px; color:#94a3b8;">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROFESSIONAL USER MODAL -->
+    <div id="user-issue-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <h2 id="detail-title">Issue Title</h2>
+                    <span class="modal-id-badge">#<span id="detail-id"></span></span>
+                </div>
+                <span class="close-btn" onclick="closeUserModal()" style="font-size:2rem; cursor:pointer; color:#94a3b8; line-height:0.5;">&times;</span>
+            </div>
+            
+            <div class="modal-body-scroll">
+                <div class="timeline-container">
+                    <div class="timeline-step" id="step-Open">1. Open</div>
+                    <div class="timeline-step" id="step-In Progress">2. Working</div>
+                    <div class="timeline-step" id="step-Resolved">3. Resolved</div>
+                    <div class="timeline-step" id="step-Closed">4. Closed</div>
+                </div>
+
+                <div class="modal-grid">
+                    <!-- Left: Content -->
+                    <div class="modal-main-col">
+                        <span class="label-small">My Description</span>
+                        <textarea id="detail-desc" class="desc-box" style="width:100%; border:none; background:transparent; resize:none;" disabled></textarea>
+                        
+                        <div class="section-divider"></div>
+                        
+                        <span class="label-small">Attachments</span>
+                        <div id="detail-images" class="attachment-grid" style="margin-bottom:30px;"></div>
+
+                        <span class="label-small">Support Chat</span>
+                        <div class="chat-container">
+                            <div id="chat-box" class="chat-box"></div>
+                            <div class="chat-input-area">
+                                <input type="text" id="chat-input" placeholder="Message support..." style="width:100%;">
+                                <button onclick="postComment()" class="primary-btn">Send</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Controls -->
+                    <div class="modal-sidebar">
+                        <div class="sidebar-widget">
+                            <span class="label-small">Ticket Info</span>
+                            <div class="info-row">
+                                <strong>Category</strong>
+                                <span id="detail-category">-</span>
+                            </div>
+                            <div class="info-row">
+                                <strong>Assigned Agent</strong>
+                                <span id="detail-assigned">Unassigned</span>
+                            </div>
+                        </div>
+
+                        <div class="sidebar-widget">
+                            <span class="label-small">My Actions</span>
+                            <button id="btn-edit" onclick="enableEditMode()" class="btn-action" style="width:100%; margin-bottom:8px; background:#f59e0b; color:black;">Edit Description</button>
+                            <button id="btn-save-edit" onclick="saveIssueEdit()" class="btn-action" style="width:100%; margin-bottom:8px; background:#10b981; display:none;">Save Changes</button>
+                            <button id="btn-resolve" onclick="changeIssueStatus('Resolved')" class="btn-action" style="width:100%; margin-bottom:8px; background:#0ea5e9;">Mark Resolved</button>
+                            <button id="btn-reopen" onclick="changeIssueStatus('Reopened')" class="btn-action" style="width:100%; margin-bottom:8px; background:#64748b; display:none;">Reopen Ticket</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth('user');
+            loadUserIssues();
+            loadCategoriesForDropdown(); 
+            if (typeof initFileUpload === 'function') initFileUpload();
+            if (typeof initVoiceToIssue === 'function') initVoiceToIssue();
+            const form = document.getElementById('issue-form');
+            if (form) form.addEventListener('submit', createIssue);
+        });
+    </script>
+</body>
+</html>

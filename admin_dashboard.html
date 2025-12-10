@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* --- DASHBOARD SPECIFIC LAYOUT --- */
+        body { margin: 0; padding: 0; background-color: #f8fafc; overflow-x: hidden; font-family: 'Inter', sans-serif; }
+        .app-wrapper { display: flex; min-height: 100vh; width: 100%; }
+        .sidebar { width: 260px; background-color: #0f172a; color: #94a3b8; display: flex; flex-direction: column; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: fixed; top: 0; bottom: 0; left: 0; z-index: 1000; box-shadow: 4px 0 20px rgba(0,0,0,0.1); border-right: 1px solid rgba(255,255,255,0.03); }
+        .sidebar.collapsed { margin-left: -260px; }
+        .sidebar-header { height: 70px; display: flex; align-items: center; padding: 0 24px; border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
+        .sidebar-logo { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: #d4af37; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+        .sidebar-nav { padding: 20px 10px; flex-grow: 1; display: flex; flex-direction: column; gap: 4px; justify-content: flex-start; overflow-y: auto; }
+        .nav-link { display: flex; align-items: center; gap: 12px; padding: 10px 16px; color: #94a3b8; text-decoration: none; font-size: 0.85rem; font-weight: 500; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; border: none; background: transparent; text-align: left; width: 100%; position: relative; letter-spacing: 0.3px; text-transform: uppercase; }
+        .nav-link:hover { background: rgba(255, 255, 255, 0.03); color: #e2e8f0; }
+        .nav-link.active { background: rgba(212, 175, 55, 0.08); color: #d4af37; font-weight: 700; }
+        .nav-link.active::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; background-color: #d4af37; border-radius: 0 4px 4px 0; }
+        .nav-link span { font-size: 1.1rem; width: 24px; text-align: center; display: inline-block; }
+        .sidebar-footer { padding: 15px 10px; border-top: 1px solid rgba(255,255,255,0.05); margin-top: auto; flex-shrink: 0; }
+        .main-content { flex: 1; margin-left: 260px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: calc(100% - 260px); display: flex; flex-direction: column; }
+        .main-content.expanded { margin-left: 0; width: 100%; }
+        .top-header { background: #ffffff; height: 70px; padding: 0 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 900; border-bottom: 1px solid #f1f5f9; }
+        .toggle-btn { background: transparent; border: none; font-size: 1.4rem; cursor: pointer; color: #334155; padding: 5px; }
+        .header-actions { display: flex; align-items: center; gap: 20px; }
+        .content-body { padding: 30px; max-width: 1600px; margin: 0 auto; width: 100%; }
+        .tab-section { display: none; animation: fadeIn 0.25s ease-out; }
+        #tab-analytics { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        /* FILTERS */
+        .filter-panel { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
+        .filter-row { display: flex; flex-wrap: wrap; gap: 30px; margin-bottom: 15px; }
+        .filter-group { display: flex; flex-direction: column; gap: 8px; }
+        .filter-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-weight: 700; }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 15px; }
+        .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: #334155; cursor: pointer; user-select: none; }
+        .checkbox-label input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: #d4af37; cursor: pointer; }
+        .date-inputs { display: flex; gap: 10px; align-items: center; }
+        .date-inputs input { margin-bottom: 0; padding: 8px; font-size: 0.85rem; width: 140px; }
+        .filter-actions { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+        
+        /* UPDATED STYLES FOR PROFESSIONAL FORM */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+        .form-group {
+            margin-bottom: 0;
+        }
+        .form-group label, .form-group input, .form-group select {
+            margin-bottom: 0;
+        }
+        .form-group-full {
+             grid-column: 1 / -1;
+        }
+        .form-divider {
+            grid-column: 1 / -1;
+            border-top: 1px solid #e2e8f0;
+            margin: 10px 0;
+        }
+        #create-user-modal .modal-header h3 {
+             font-family: 'Playfair Display', serif;
+        }
+
+        /* NEW: User Role Filter Styles */
+        .role-filter-btn {
+            background: #fff; color: #334155; border: 1px solid #cbd5e1; padding: 6px 16px;
+            border-radius: 6px; font-size: 0.8rem; cursor: pointer; transition: all 0.2s;
+        }
+        .role-filter-btn:hover { background: #f8fafc; border-color: #94a3b8; }
+        .role-filter-btn.active {
+            background: var(--navy-dark); color: var(--gold-primary);
+            border-color: var(--navy-dark); font-weight: 700;
+        }
+
+
+        @media (max-width: 900px) {
+            .sidebar { margin-left: -260px; }
+            .sidebar.open { margin-left: 0; box-shadow: 10px 0 30px rgba(0,0,0,0.3); }
+            .main-content { margin-left: 0; width: 100%; }
+            .content-body { padding: 20px 15px; }
+            .top-header { padding: 0 15px; }
+            .sidebar.open::before { content: ''; position: fixed; top: 0; left: 260px; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(2px); z-index: 999; }
+            .filter-row { gap: 20px; flex-direction: column; }
+            .date-inputs { width: 100%; }
+            .date-inputs input { width: 100%; }
+            .form-grid { grid-template-columns: 1fr; gap: 0; }
+        }
+    </style>
+</head>
+<body style="visibility: hidden; opacity: 0; transition: opacity 0.4s ease;">
+
+<div class="app-wrapper">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">◆ MACROTECH</div>
+        </div>
+        <nav class="sidebar-nav">
+            <button class="nav-link active" onclick="switchAdminTab('analytics')" id="link-analytics"><span>📊</span> Analytics</button>
+            <button class="nav-link" onclick="switchAdminTab('issues')" id="link-issues"><span>🎫</span> Ticket Log</button>
+            <button class="nav-link" onclick="switchAdminTab('users')" id="link-users"><span>👥</span> Users</button>
+            <button class="nav-link" onclick="switchAdminTab('orgs')" id="link-orgs"><span>🏢</span> Organizations</button>
+            <button class="nav-link" onclick="switchAdminTab('categories')" id="link-categories"><span>🏷️</span> Categories</button>
+        </nav>
+        <div class="sidebar-footer">
+            <button onclick="logout()" class="nav-link" style="color: #ef4444;"><span>🚪</span> Sign Out</button>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content" id="main-content">
+        <!-- TOP HEADER -->
+        <header class="top-header">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
+                <h3 style="margin:0; font-size:1.1rem; color:#0f172a; font-weight:600;">Admin Console</h3>
+            </div>
+            <div class="header-actions">
+                <div class="notification-wrapper" onclick="toggleNotifications()">
+                    <div style="position: relative; padding: 8px; cursor: pointer;">
+                        <span id="notification-bell" class="bell-icon" style="font-size: 1.1rem; color: #64748b;">🔔</span>
+                        <span id="notif-badge" class="bell-badge">0</span>
+                    </div>
+                    <div id="notif-dropdown" class="notification-dropdown">
+                        <div class="notif-header">
+                            <span>Alerts</span>
+                            <span style="font-weight:400; font-size:0.7rem; cursor:pointer; color:#3b82f6;" onclick="event.stopPropagation(); loadNotifications(supabase.auth.getUser().then(u=>u.data.user.id))">Refresh</span>
+                        </div>
+                        <div id="notif-list" class="notif-list">
+                            <div style="padding:15px; text-align:center; color:#94a3b8; font-size:0.8rem;">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+                <a href="profile.html" style="text-decoration:none;">
+                    <div style="width:36px; height:36px; background:#f8fafc; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#0f172a; font-weight:700; border:1px solid #e2e8f0; font-size:0.9rem;">A</div>
+                </a>
+            </div>
+        </header>
+
+        <!-- DASHBOARD CONTENT -->
+        <div class="content-body">
+            <!-- 1. ANALYTICS -->
+            <div id="tab-analytics" class="tab-section">
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px; border-bottom:1px solid #f1f5f9; padding-bottom:15px;">
+                        <h4 style="margin:0; border:none; padding:0;">Performance Overview</h4>
+                        <button onclick="loadAllIssues()" class="btn-action" style="background:#fff; color:#334155; border:1px solid #cbd5e1;">Refresh Data</button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;">
+                        <div style="height: 250px; position: relative;"><canvas id="statusChart"></canvas></div>
+                        <div style="height: 250px; position: relative;"><canvas id="trendChart"></canvas></div>
+                        <div style="height: 250px; position: relative;"><canvas id="categoryChart"></canvas></div>
+                        <div style="height: 250px; position: relative;"><canvas id="priorityChart"></canvas></div>
+                        <div style="height: 250px; position: relative;"><canvas id="resolutionChart"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 30px;">
+                    <h4 style="margin:0; border:none; padding:0; margin-bottom: 25px;">Team Workload Heatmap</h4>
+                    <p style="font-size: 0.85rem; color: #64748b; margin-top: -20px; margin-bottom: 20px;">This heatmap shows the number of tickets resolved by each support staff member on different days of the week.</p>
+                    <div id="heatmap-container"></div>
+                    <div id="heatmap-legend" style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; margin-top: 20px; font-size: 0.75rem; color: #64748b;">
+                        <span>Less Busy</span>
+                        <div style="display: flex; gap: 2px;">
+                            <div style="width: 15px; height: 15px; background-color: #edf8e9; border-radius: 3px; border: 1px solid #eee;"></div>
+                            <div style="width: 15px; height: 15px; background-color: #bae4b3; border-radius: 3px;"></div>
+                            <div style="width: 15px; height: 15px; background-color: #74c476; border-radius: 3px;"></div>
+                            <div style="width: 15px; height: 15px; background-color: #31a354; border-radius: 3px;"></div>
+                            <div style="width: 15px; height: 15px; background-color: #006d2c; border-radius: 3px;"></div>
+                        </div>
+                        <span>More Busy</span>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-top: 30px;">
+                    <h4 style="margin:0; border:none; padding:0; margin-bottom: 25px;">Ticket Churn Analysis</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 40px;">
+                        <div>
+                            <h5 style="margin-top:0; margin-bottom: 15px; font-family: 'Inter', sans-serif; font-weight: 600; color: #334155;">Most Frequent Issue Categories</h5>
+                            <div id="churn-categories-list"></div>
+                        </div>
+                        <div>
+                            <h5 style="margin-top:0; margin-bottom: 15px; font-family: 'Inter', sans-serif; font-weight: 600; color: #334155;">Potential Recurring Tickets by Title</h5>
+                            <p style="font-size: 0.8rem; color: #64748b; margin-top: -10px; margin-bottom: 15px;">Groups of 3+ tickets with similar starting words are shown below.</p>
+                            <div id="churn-title-clusters"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 2. ISSUES -->
+            <div id="tab-issues" class="tab-section">
+                <div class="filter-panel">
+                    <div class="filter-row">
+                        <div class="filter-group" style="flex: 2;">
+                            <span class="filter-label">Filter by Status</span>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label"><input type="checkbox" class="filter-status" value="Open" onchange="applyAdminFilters()"> Open</label>
+                                <label class="checkbox-label"><input type="checkbox" class="filter-status" value="In Progress" onchange="applyAdminFilters()"> In Progress</label>
+                                <label class="checkbox-label"><input type="checkbox" class="filter-status" value="Resolved" onchange="applyAdminFilters()"> Resolved</label>
+                                <label class="checkbox-label"><input type="checkbox" class="filter-status" value="Closed" onchange="applyAdminFilters()"> Closed</label>
+                                <label class="checkbox-label"><input type="checkbox" class="filter-status" value="Reopened" onchange="applyAdminFilters()"> Reopened</label>
+                            </div>
+                        </div>
+                        <div class="filter-group" style="flex: 1;">
+                            <span class="filter-label">Filter by Priority</span>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label"><input type="checkbox" class="filter-priority" value="Low" onchange="applyAdminFilters()"> Low</label>
+                                <label class="checkbox-label"><input type="checkbox" class="filter-priority" value="Medium" onchange="applyAdminFilters()"> Medium</label>
+                                <label class="checkbox-label"><input type="checkbox" class="filter-priority" value="High" onchange="applyAdminFilters()"> High</label>
+                            </div>
+                        </div>
+                        <div class="filter-group" style="flex: 1;">
+                            <span class="filter-label">Date Range</span>
+                            <div class="date-inputs">
+                                <input type="date" id="filter-date-start" placeholder="dd/mm/yyyy">
+                                <span style="color:#94a3b8;">—</span>
+                                <input type="date" id="filter-date-end" placeholder="dd/mm/yyyy">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="filter-actions">
+                        <button onclick="clearAdminFilters()" class="btn-action" style="background:transparent; border:1px solid #cbd5e1; color:#64748b;">Clear Filters</button>
+                        <button onclick="applyAdminFilters()" class="btn-action" style="background:#0f172a; color:#d4af37; padding: 8px 20px;">Apply Filters</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <h4>All Issues Ticket Log</h4>
+                    <div style="overflow-x: auto;">
+                        <table id="issues-table">
+                            <thead><tr><th style="white-space:nowrap;">Date</th><th>Title</th><th>Reporter</th><th>Priority</th><th>SLA</th><th>Assigned</th><th>Status</th><th>Action</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. USERS -->
+            <div id="tab-users" class="tab-section">
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <h4>User Management</h4>
+                        <button onclick="openCreateUserModal()" class="btn-action" style="background-color: var(--gold-primary); color: var(--navy-dark);">+ Create User</button>
+                    </div>
+                    
+                    <!-- NEW: Role Filter Bar -->
+                    <div style="margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+                        <span class="filter-label" style="margin-bottom: 0;">Filter by Role:</span>
+                        <button class="role-filter-btn active" id="filter-role-all" onclick="filterUsersByRole('all')">All</button>
+                        <button class="role-filter-btn" id="filter-role-user" onclick="filterUsersByRole('user')">Users</button>
+                        <button class="role-filter-btn" id="filter-role-support" onclick="filterUsersByRole('support')">Support</button>
+                        <button class="role-filter-btn" id="filter-role-admin" onclick="filterUsersByRole('admin')">Admins</button>
+                    </div>
+
+                    <div style="overflow-x: auto;">
+                        <table id="users-table">
+                            <thead><tr><th>User Details</th><th>Role</th><th>Expiry Date</th><th>Account Status</th><th>Actions</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. ORGS -->
+            <div id="tab-orgs" class="tab-section">
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <h4>Organization Directory</h4>
+                        <button onclick="loadOrganizations()" class="btn-action" style="background:#fff; color:#334155; border:1px solid #cbd5e1;">Refresh List</button>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table id="org-table">
+                            <thead><tr><th>Organization Name</th><th>Total Users</th><th style="text-align: right;">Actions</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. CATEGORIES -->
+            <div id="tab-categories" class="tab-section">
+                <div class="card">
+                    <h4>Issue Categories</h4>
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px; align-items: center;">
+                        <input type="text" id="new-category-input" placeholder="New Category Name..." style="margin-bottom:0;">
+                        <button onclick="addCategory()" class="primary-btn" style="width:auto; padding: 10px 20px;">Add</button>
+                    </div>
+                    <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+                        <table id="categories-table">
+                            <thead><tr><th>Category Name</th><th style="text-align: right;">Actions</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- MODALS -->
+
+<!-- UPDATED CREATE USER MODAL -->
+<div id="create-user-modal" class="modal">
+    <div class="modal-content" style="max-width: 700px; height: auto;">
+        <div class="modal-header">
+            <h3>Create New User</h3>
+            <span class="close-btn" onclick="closeCreateUserModal()" style="font-size:2rem; cursor:pointer; color:#94a3b8;">&times;</span>
+        </div>
+        <div class="modal-body-scroll" style="padding: 25px 40px;">
+            <form id="create-user-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="new-user-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="new-user-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Create Password</label>
+                        <input type="password" id="new-user-password" required>
+                    </div>
+                     <div class="form-group">
+                        <label>Phone Number (10 digits)</label>
+                        <input type="tel" id="new-user-number" maxlength="10" pattern="\d{10}" onkeypress="return event.charCode >= 48 && event.charCode <= 57">
+                    </div>
+                </div>
+
+                <div class="form-divider"></div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Organization Name</label>
+                        <input type="text" id="new-user-org">
+                    </div>
+                    <div class="form-group">
+                        <label>Assign Role</label>
+                        <select id="new-user-role" class="select-modern">
+                            <option value="user">User</option>
+                            <option value="support">Support</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-divider"></div>
+
+                <div class="form-group form-group-full">
+                    <label>Account Expiration Date</label>
+                    <input type="date" id="new-user-exp-date" required style="margin-bottom: 25px;">
+                </div>
+
+                <button type="submit" class="primary-btn">Create Account</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- PROFESSIONAL ADMIN MODAL -->
+<div id="admin-issue-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <h2 id="admin-detail-title">Issue Title</h2>
+                <span class="modal-id-badge">#<span id="admin-detail-id"></span></span>
+            </div>
+            <span class="close-btn" onclick="closeAdminModal()" style="font-size:2rem; cursor:pointer; color:#94a3b8; line-height:0.5;">&times;</span>
+        </div>
+        <div class="modal-body-scroll">
+            <div class="timeline-container">
+                <div class="timeline-step" id="admin-step-Open">1. Open</div>
+                <div class="timeline-step" id="admin-step-In Progress">2. In Progress</div>
+                <div class="timeline-step" id="admin-step-Resolved">3. Resolved</div>
+                <div class="timeline-step" id="admin-step-Closed">4. Closed</div>
+            </div>
+            <div class="modal-grid">
+                <div class="modal-main-col">
+                    <span class="label-small">Problem Description</span>
+                    <div id="admin-detail-desc" class="desc-box"></div>
+                    <div class="section-divider"></div>
+                    <span class="label-small">Attachments</span>
+                    <div id="admin-detail-images" class="attachment-grid" style="margin-bottom: 30px;"></div>
+                    <span class="label-small">Internal Discussion</span>
+                    <div class="chat-container">
+                        <div id="admin-chat-box" class="chat-box"></div>
+                        <div class="chat-input-area">
+                            <input type="text" id="admin-chat-input" placeholder="Type an internal note..." style="width:100%;">
+                            <button onclick="adminPostComment()" class="primary-btn">Send</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-sidebar">
+                    <div class="sidebar-widget">
+                        <span class="label-small">Reporter Details</span>
+                        <div class="info-row">
+                            <strong>Name / Email</strong>
+                            <div id="admin-detail-user">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="sidebar-widget">
+                        <span class="label-small">Action Center</span>
+                        <label class="label-small" style="color:#64748b; font-weight:600; margin-top:10px;">Assign To</label>
+                        <select id="admin-assign-select" class="select-modern">
+                            <option value="">-- Select Staff --</option>
+                        </select>
+                        <label class="label-small" style="color:#64748b; font-weight:600;">Priority</label>
+                        <select id="admin-priority-select" class="select-modern">
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                        </select>
+                        <label class="label-small" style="color:#64748b; font-weight:600;">Instructions</label>
+                        <textarea id="admin-internal-note" placeholder="Note for support staff..." style="width:100%; height:60px; font-size:0.85rem; padding:8px; border:1px solid #cbd5e1; border-radius:6px; resize:none; margin-bottom:10px;"></textarea>
+                        <button onclick="adminAssignIssue()" class="primary-btn" style="font-size:0.8rem; padding:10px;">Save Assignments</button>
+                    </div>
+                    <div class="sidebar-widget">
+                        <span class="label-small">Status Override</span>
+                        <select id="admin-status-select" class="select-modern">
+                            <option value="Open">Open</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Resolved">Resolved</option>
+                            <option value="Closed">Closed</option>
+                        </select>
+                        <button onclick="adminUpdateStatus()" class="btn-action" style="width:100%; text-align:center;">Update Status</button>
+                    </div>
+                    <div style="text-align:center; margin-top:auto;">
+                        <button onclick="deleteIssue(currentIssueId)" style="color:#ef4444; background:none; border:none; font-size:0.75rem; text-decoration:underline; cursor:pointer;">Delete this Ticket</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- HISTORY & ORG MODALS -->
+<div id="user-history-modal" class="modal">
+    <div class="modal-content" style="max-width:800px; height:auto; max-height:80vh;">
+        <div class="modal-header">
+            <h3>User History</h3>
+            <span class="close-btn" onclick="closeGenericModal('user-history-modal')" style="font-size:2rem; cursor:pointer; color:#94a3b8;">&times;</span>
+        </div>
+        <div class="modal-body-scroll" style="padding:20px;">
+            <span id="history-user-email" style="display:block; margin-bottom:15px; color:#64748b;"></span>
+            <table style="width:100%;"><thead><tr><th>Date</th><th>Issue Title</th><th>Status</th></tr></thead><tbody id="history-table-body"></tbody></table>
+        </div>
+    </div>
+</div>
+
+<div id="org-detail-modal" class="modal">
+    <div class="modal-content" style="max-width:900px; height:auto; max-height:80vh;">
+        <div class="modal-header">
+            <h3 id="org-modal-title">Organization</h3>
+            <span class="close-btn" onclick="closeGenericModal('org-detail-modal')" style="font-size:2rem; cursor:pointer; color:#94a3b8;">&times;</span>
+        </div>
+        <div class="modal-body-scroll" style="padding:20px;">
+            <table id="org-users-table" style="width:100%;"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead><tbody></tbody></table>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        checkAuth('admin');
+        loadAllIssues();
+        loadAllUsers();
+        loadOrganizations();
+        loadSupportStaffForDropdown();
+        loadCategories();
+
+        const createUserForm = document.getElementById('create-user-form');
+        if (createUserForm) {
+            createUserForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                adminCreateUser();
+            });
+        }
+    });
+</script>
+</body>
+</html>

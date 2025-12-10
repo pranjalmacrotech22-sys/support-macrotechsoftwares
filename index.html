@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Macrotech Support - Login</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <!-- Main Styles -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        /* --- CORE LAYOUT --- */
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Fallback */
+        }
+
+        /* --- LEFT PANEL: BRANDING (Navy) --- */
+        .brand-panel {
+            flex: 1;
+            background-color: #0f172a; /* Navy Dark */
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 4rem 5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Golden Glow Effect */
+        .brand-panel::before {
+            content: '';
+            position: absolute;
+            top: -150px;
+            right: -100px;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.12) 0%, rgba(15, 23, 42, 0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .brand-logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #d4af37; /* Gold */
+            margin-bottom: 2.5rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-heading {
+            font-family: 'Playfair Display', serif;
+            font-size: 3.8rem;
+            line-height: 1.1;
+            margin: 0 0 1.5rem 0;
+            background: linear-gradient(135deg, #ffffff 60%, #d4af37 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-sub {
+            font-size: 1.1rem;
+            color: #94a3b8;
+            margin-bottom: 3.5rem;
+            max-width: 480px;
+            line-height: 1.7;
+            font-weight: 300;
+        }
+
+        /* Feature List */
+        .features {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .feature-item {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(5px);
+            padding: 12px 20px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .copyright {
+            position: absolute;
+            bottom: 40px;
+            opacity: 0.4;
+            font-size: 0.75rem;
+            color: #fff;
+        }
+
+        /* --- RIGHT PANEL: AUTH (White) --- */
+        .auth-panel {
+            flex: 0.85;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        .auth-container {
+            width: 100%;
+            max-width: 400px;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .auth-welcome { margin-bottom: 2.5rem; }
+        .auth-welcome h2 {
+            font-size: 2rem;
+            color: #0f172a;
+            font-family: 'Playfair Display', serif;
+            margin: 0 0 8px 0;
+        }
+        .auth-welcome p { color: #64748b; margin: 0; font-size: 0.95rem; }
+
+        /* Form Controls */
+        label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 6px;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 14px 16px;
+            border-radius: 8px;
+            margin-bottom: 18px;
+            width: 100%;
+            transition: all 0.2s;
+            font-size: 0.95rem;
+            font-family: 'Inter', sans-serif;
+            color: #0f172a;
+            box-sizing: border-box;
+        }
+        input:focus {
+            background: #fff;
+            border-color: #d4af37;
+            box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
+            outline: none;
+        }
+
+        /* --- BUTTON STYLES UPDATED --- */
+        .primary-btn {
+            background: #0f172a; /* Navy */
+            color: #d4af37; /* Gold */
+            padding: 16px;
+            font-size: 1rem;
+            margin-top: 10px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            border-radius: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* NEW: Shimmer/Gloss pseudo-element */
+        .primary-btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -150%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(110deg, rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0) 60%);
+            transform: skewX(-25deg);
+            transition: left 0.7s cubic-bezier(0.19, 1, 0.22, 1); /* Smoother, slightly slower transition */
+        }
+        
+        /* Combined hover effects */
+        .primary-btn:hover {
+            transform: translateY(-2px) scale(1.01);
+            box-shadow: 0 15px 30px -5px rgba(15, 23, 42, 0.3);
+        }
+
+        /* Trigger shimmer on hover */
+        .primary-btn:hover::after {
+            left: 150%;
+        }
+        
+        .primary-btn:active {
+            transform: scale(0.98);
+            box-shadow: 0 5px 15px -3px rgba(15, 23, 42, 0.3);
+        }
+
+        /* --- TAB SWITCHER UPDATED --- */
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 30px;
+            background: transparent; /* No container background */
+            padding: 0;
+            border-bottom: 1px solid #e2e8f0;
+            gap: 20px;
+        }
+        
+        .auth-tabs button {
+            flex: 1;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent; /* Invisible border by default */
+            padding: 12px 5px;
+            font-weight: 500;
+            color: #94a3b8;
+            border-radius: 0; /* Square corners for underline effect */
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+            position: relative;
+        }
+        
+        /* Hover Effect for inactive tabs */
+        .auth-tabs button:hover:not(.active) {
+            color: #64748b;
+        }
+
+        /* Active Tab Effect */
+        .auth-tabs button.active {
+            background: transparent; /* No color change */
+            color: #0f172a;
+            border-bottom-color: #d4af37; /* Gold Underline */
+            font-weight: 700;
+            transform: translateY(-1px); /* Slight lift */
+            text-shadow: 0 0 1px rgba(15, 23, 42, 0.1); /* Subtle bold effect */
+        }
+
+        /* Feedback Message */
+        #message {
+            margin-top: 20px;
+            font-size: 0.85rem;
+            text-align: center;
+            min-height: 20px;
+            font-weight: 500;
+        }
+
+        /* Animation */
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- MOBILE RESPONSIVE STYLES --- */
+        @media (max-width: 968px) {
+            body {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+            }
+
+            .brand-panel {
+                flex: none;
+                width: 100%;
+                padding: 3rem 2rem 4rem 2rem; 
+                box-sizing: border-box;
+                min-height: 300px;
+                text-align: center;
+                align-items: center;
+            }
+
+            .brand-heading { font-size: 2.5rem; margin-bottom: 1rem; }
+            .brand-sub { font-size: 1rem; margin-bottom: 1rem; }
+            
+            .features, .copyright, .brand-panel::before { display: none; }
+
+            .auth-panel {
+                flex: 1;
+                width: 100%;
+                box-sizing: border-box;
+                padding: 2.5rem 1.5rem;
+                background: #fff;
+                border-top-left-radius: 30px;
+                border-top-right-radius: 30px;
+                margin-top: -30px;
+                box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
+                z-index: 10;
+            }
+
+            .auth-container { max-width: 100%; }
+            .auth-welcome { text-align: center; margin-bottom: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- LEFT SIDE: PREMIUM BRANDING -->
+    <div class="brand-panel">
+        <div class="brand-logo">
+            <span>◆</span> Macrotech Softwares
+        </div>
+        
+        <h1 class="brand-heading">
+            Excellence in <br>
+            Resolution.
+        </h1>
+        
+        <p class="brand-sub">
+            Welcome to the Support Portal. <br>
+            Track tickets and manage projects seamlessly.
+        </p>
+
+        <div class="features">
+            <div class="feature-item"><span>⚡</span> Real-time Tracking</div>
+            <div class="feature-item"><span>🛡️</span> Secure & Private</div>
+            <div class="feature-item"><span>💎</span> Priority Support</div>
+        </div>
+
+        <div class="copyright">
+            &copy; 2024 Macrotech Softwares. All rights reserved.
+        </div>
+    </div>
+
+    <!-- RIGHT SIDE: AUTHENTICATION -->
+    <div class="auth-panel">
+        <div class="auth-container">
+            <div class="auth-welcome">
+                <h2>Welcome Back</h2>
+                <p>Login or create an account to access dashboard.</p>
+            </div>
+
+            <!-- Tab Switcher -->
+            <div class="auth-tabs">
+                <button onclick="showForm('login')" id="tab-login" class="active">Login</button>
+                <button onclick="showForm('signup')" id="tab-signup">Sign Up</button>
+            </div>
+
+            <!-- LOGIN FORM -->
+            <form id="login-form">
+                <label>Email Address</label>
+                <input type="email" id="login-email" required>
+                
+                <label>Password</label>
+                <input type="password" id="login-password" required>
+                
+                <button type="submit" class="primary-btn">Sign In &rarr;</button>
+            </form>
+
+            <!-- SIGNUP FORM -->
+            <form id="signup-form" style="display:none;">
+                <label>Full Name</label>
+                <input type="text" id="signup-name" required>
+
+                <label>Phone Number</label>
+                <input type="tel" id="signup-number" maxlength="10" pattern="\d{10}" title="Please enter exactly 10 digits" onkeypress="return event.charCode >= 48 && event.charCode <= 57" required>
+                
+                <label>Organization Name</label>
+                <input type="text" id="signup-org" required>
+
+                <label>Email Address</label>
+                <input type="email" id="signup-email" required>
+                
+                <label>Create Password</label>
+                <input type="password" id="signup-password" required>
+                
+                <button type="submit" class="primary-btn">Create Account</button>
+            </form>
+
+            <!-- Feedback Message -->
+            <p id="message"></p>
+        </div>
+    </div>
+
+    <!-- Logic Script -->
+    <script src="script.js"></script>
+</body>
+</html>
